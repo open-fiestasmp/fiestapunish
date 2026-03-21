@@ -3,7 +3,7 @@
   "id": "fiestapunish",
   "version": "${version}",
   "name": "FiestaPunish",
-  "description": "Advanced chat filter and punishment system for Fabric 1.21.1 servers. Censors words, phrases, leetspeak and escalates punishments automatically.",
+  "description": "Advanced chat filter and punishment system for Fabric 1.21.11 servers.",
   "authors": [
     "Fiesta SMP"
   ],
@@ -19,9 +19,9 @@
     "fiestapunish.mixins.json"
   ],
   "depends": {
-    "fabricloader": ">=0.16.0",
+    "fabricloader": ">=0.18.0",
     "fabric-api": "*",
-    "minecraft": ">=1.21.1 <1.22",
+    "minecraft": "~1.21",
     "java": ">=21"
   }
 }

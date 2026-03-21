@@ -4,8 +4,5 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "ServerPlayNetworkHandlerMixin"
-  ],
-  "injectors": {
-    "defaultRequire": 1
-  }
+  ]
 }

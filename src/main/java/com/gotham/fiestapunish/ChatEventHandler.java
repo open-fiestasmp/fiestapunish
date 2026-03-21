@@ -4,87 +4,78 @@ import net.fabricmc.fabric.api.message.v1.ServerMessageDecoratorEvent;
 import net.fabricmc.fabric.api.message.v1.ServerMessageEvents;
 import net.minecraft.network.message.MessageType;
 import net.minecraft.network.message.SignedMessage;
-import net.minecraft.server.filter.FilteredMessage;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Hooks into Fabric API's ServerMessageEvents to intercept and filter chat.
- * This approach is version-stable — no fragile Mixin method-name matching needed.
+ * Chat filter + punishment handler for Minecraft 1.21.11 / fabric-api 0.141.x
  *
- * Flow:
- *  1. ALLOW_CHAT_MESSAGE — fires before broadcast. Used to block muted/banned players
- *     and trigger punishment logic.
- *  2. ServerMessageDecoratorEvent (CONTENT phase) — modifies the message text
- *     to replace banned content with ######.
+ * API facts confirmed for 1.20.3+ (carried through to 1.21.11):
+ *   - ServerMessageDecoratorEvent lambda: (ServerPlayerEntity, Text) -> Text  [NO CompletableFuture]
+ *   - SignedMessage.getSignedContent()   -> String  (the raw typed text)
+ *   - SignedMessage.getContent()         -> Text    (decorated/display text)
+ *   - ServerMessageEvents.ALLOW_CHAT_MESSAGE signature unchanged since 1.19
  */
 public class ChatEventHandler {
 
     public static void register() {
 
-        // ── Phase 1: Decorator — rewrites message content with censored text ──
+        // ── 1. Rewrite message text (censorship) ─────────────────────────────
+        // Returns Text directly — CompletableFuture was removed in 1.20.3+
         ServerMessageDecoratorEvent.EVENT.register(
             ServerMessageDecoratorEvent.CONTENT_PHASE,
-            (sender, message) -> {
-                if (sender == null) return CompletableFuture.completedFuture(message);
-
+            (ServerPlayerEntity sender, Text message) -> {
+                if (sender == null) return message;
                 String original = message.getString();
                 ChatFilterEngine.FilterResult result = ChatFilterEngine.filter(original);
-
-                if (!result.wasCensored) return CompletableFuture.completedFuture(message);
-
-                // Return censored text
-                return CompletableFuture.completedFuture(Text.literal(result.filtered));
+                if (!result.wasCensored) return message;
+                return Text.literal(result.filtered);
             }
         );
 
-        // ── Phase 2: ALLOW_CHAT_MESSAGE — runs after decoration, before broadcast ─
+        // ── 2. Enforce mute/ban + record punishments ──────────────────────────
         ServerMessageEvents.ALLOW_CHAT_MESSAGE.register(
-            (message, sender, params) -> {
+            (SignedMessage message, ServerPlayerEntity sender, MessageType.Parameters params) -> {
                 if (sender == null) return true;
 
                 String uuid       = sender.getUuidAsString();
                 String playerName = sender.getName().getString();
 
-                // ── Banned? ───────────────────────────────────────────────────
+                // Banned?
                 if (PunishmentManager.isBanned(uuid)) {
                     long until = PunishmentManager.getBannedUntilMs(uuid);
                     if (until == Long.MAX_VALUE)
                         sender.sendMessage(txt("§c✖ §7You are §cpermanently banned §7from chat."), false);
                     else
                         sender.sendMessage(txt("§c✖ §7Chat banned for §f" + fmt(until) + "§7."), false);
-                    return false; // block message
+                    return false;
                 }
 
-                // ── Muted? ────────────────────────────────────────────────────
+                // Muted?
                 if (PunishmentManager.isMuted(uuid)) {
                     long until = PunishmentManager.getMutedUntilMs(uuid);
                     sender.sendMessage(txt("§c\uD83D\uDD07 §7You are §cmuted§7. Expires in §f" + fmt(until) + "§7."), false);
-                    return false; // block message
+                    return false;
                 }
 
-                // ── Check if the message was censored ─────────────────────────
-                // The decorator already rewrote the text; we check the original
+                // Check if content was censored — getSignedContent() returns String in 1.20.3+
                 String original = message.getSignedContent();
                 ChatFilterEngine.FilterResult result = ChatFilterEngine.filter(original);
-
-                if (!result.wasCensored) return true; // clean, pass through
+                if (!result.wasCensored) return true;
 
                 if (FilterConfig.isLogToConsole()) {
                     FiestaPunishMod.LOGGER.info("[FiestaPunish] {} | [{}] -> [{}]",
                             playerName, original, result.filtered);
                 }
 
-                // ── Record offence and apply punishment ───────────────────────
+                // Record offence and apply punishment
                 PunishmentManager.Action action = PunishmentManager.recordOffence(uuid, playerName);
                 int warns = PunishmentManager.getWarnsToday(uuid);
                 int left  = PunishmentManager.WARNS_BEFORE_MUTE - warns;
 
                 switch (action) {
-
                     case WARN -> sender.sendMessage(txt(
                         "§e⚠ §7Watch your language! §8[Warning §c" + warns
                         + "§8/§c" + PunishmentManager.WARNS_BEFORE_MUTE
@@ -98,7 +89,8 @@ public class ChatEventHandler {
                         ), false);
                         notifyStaff(sender, "§7" + playerName + " §7muted §c"
                             + PunishmentManager.MUTE_SHORT_MINS + "min §8(30 warnings)");
-                        FiestaPunishMod.LOGGER.info("[FiestaPunish] {} muted {}min.", playerName, PunishmentManager.MUTE_SHORT_MINS);
+                        FiestaPunishMod.LOGGER.info("[FiestaPunish] {} muted {}min.",
+                            playerName, PunishmentManager.MUTE_SHORT_MINS);
                     }
 
                     case KICK_AND_MUTE_LONG -> {
@@ -136,7 +128,7 @@ public class ChatEventHandler {
                     case BANNED -> { return false; }
                 }
 
-                // Allow the (already-decorated/censored) message through
+                // Let the already-decorated (censored) message through
                 return true;
             }
         );

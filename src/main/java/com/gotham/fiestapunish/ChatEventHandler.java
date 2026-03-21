@@ -2,31 +2,30 @@ package com.gotham.fiestapunish;
 
 import net.fabricmc.fabric.api.message.v1.ServerMessageDecoratorEvent;
 import net.fabricmc.fabric.api.message.v1.ServerMessageEvents;
-import net.minecraft.network.message.MessageType;
-import net.minecraft.network.message.SignedMessage;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 
 import java.util.concurrent.TimeUnit;
 
 /**
- * Chat filter + punishment handler for Minecraft 1.21.11 / fabric-api 0.141.x
+ * Chat filter and punishment handler for Minecraft 1.21.11 / fabric-api 0.141.3
  *
- * API facts confirmed for 1.20.3+ (carried through to 1.21.11):
- *   - ServerMessageDecoratorEvent lambda: (ServerPlayerEntity, Text) -> Text  [NO CompletableFuture]
- *   - SignedMessage.getSignedContent()   -> String  (the raw typed text)
- *   - SignedMessage.getContent()         -> Text    (decorated/display text)
- *   - ServerMessageEvents.ALLOW_CHAT_MESSAGE signature unchanged since 1.19
+ * Confirmed from fabric-api 1.21.11 source (ChatTest.java):
+ *   - Decorator lambda: (sender, message) -> Text  [inferred, no explicit types needed]
+ *   - ALLOW_CHAT_MESSAGE: (message, sender, params) -> boolean
+ *   - message.signedContent() returns String (confirmed from ChatTest line 80)
+ *   - No CompletableFuture anywhere
  */
 public class ChatEventHandler {
 
     public static void register() {
 
-        // ── 1. Rewrite message text (censorship) ─────────────────────────────
-        // Returns Text directly — CompletableFuture was removed in 1.20.3+
+        // ── 1. Rewrite message content with censored text ─────────────────────
+        // Decorator confirmed from fabric-api 1.21.11 ChatTest.java:
+        //   ServerMessageDecoratorEvent.EVENT.register(CONTENT_PHASE, (sender, message) -> { ... })
         ServerMessageDecoratorEvent.EVENT.register(
             ServerMessageDecoratorEvent.CONTENT_PHASE,
-            (ServerPlayerEntity sender, Text message) -> {
+            (sender, message) -> {
                 if (sender == null) return message;
                 String original = message.getString();
                 ChatFilterEngine.FilterResult result = ChatFilterEngine.filter(original);
@@ -35,9 +34,12 @@ public class ChatEventHandler {
             }
         );
 
-        // ── 2. Enforce mute/ban + record punishments ──────────────────────────
+        // ── 2. Block muted/banned players + apply punishments ─────────────────
+        // Confirmed from fabric-api 1.21.11 ChatTest.java:
+        //   ServerMessageEvents.ALLOW_CHAT_MESSAGE.register((message, sender, params) -> ...)
+        //   message.signedContent() -> String
         ServerMessageEvents.ALLOW_CHAT_MESSAGE.register(
-            (SignedMessage message, ServerPlayerEntity sender, MessageType.Parameters params) -> {
+            (message, sender, params) -> {
                 if (sender == null) return true;
 
                 String uuid       = sender.getUuidAsString();
@@ -47,21 +49,22 @@ public class ChatEventHandler {
                 if (PunishmentManager.isBanned(uuid)) {
                     long until = PunishmentManager.getBannedUntilMs(uuid);
                     if (until == Long.MAX_VALUE)
-                        sender.sendMessage(txt("§c✖ §7You are §cpermanently banned §7from chat."), false);
+                        sender.sendMessage(Text.literal("§c✖ §7You are §cpermanently banned §7from chat."), false);
                     else
-                        sender.sendMessage(txt("§c✖ §7Chat banned for §f" + fmt(until) + "§7."), false);
+                        sender.sendMessage(Text.literal("§c✖ §7Chat banned for §f" + fmt(until) + "§7."), false);
                     return false;
                 }
 
                 // Muted?
                 if (PunishmentManager.isMuted(uuid)) {
                     long until = PunishmentManager.getMutedUntilMs(uuid);
-                    sender.sendMessage(txt("§c\uD83D\uDD07 §7You are §cmuted§7. Expires in §f" + fmt(until) + "§7."), false);
+                    sender.sendMessage(Text.literal("§c\uD83D\uDD07 §7You are §cmuted§7. Expires in §f" + fmt(until) + "§7."), false);
                     return false;
                 }
 
-                // Check if content was censored — getSignedContent() returns String in 1.20.3+
-                String original = message.getSignedContent();
+                // Was content censored?
+                // signedContent() confirmed from fabric-api ChatTest.java line 80
+                String original = message.signedContent();
                 ChatFilterEngine.FilterResult result = ChatFilterEngine.filter(original);
                 if (!result.wasCensored) return true;
 
@@ -76,14 +79,14 @@ public class ChatEventHandler {
                 int left  = PunishmentManager.WARNS_BEFORE_MUTE - warns;
 
                 switch (action) {
-                    case WARN -> sender.sendMessage(txt(
+                    case WARN -> sender.sendMessage(Text.literal(
                         "§e⚠ §7Watch your language! §8[Warning §c" + warns
                         + "§8/§c" + PunishmentManager.WARNS_BEFORE_MUTE
                         + "§8 — §e" + left + " left before mute§8]"
                     ), false);
 
                     case MUTE_SHORT -> {
-                        sender.sendMessage(txt(
+                        sender.sendMessage(Text.literal(
                             "§c\uD83D\uDD07 §7Muted for §f" + PunishmentManager.MUTE_SHORT_MINS
                             + " minutes §7for repeated inappropriate language."
                         ), false);
@@ -94,7 +97,7 @@ public class ChatEventHandler {
                     }
 
                     case KICK_AND_MUTE_LONG -> {
-                        sender.sendMessage(txt(
+                        sender.sendMessage(Text.literal(
                             "§4✖ §cMuted 24h and being kicked — muted §f3 times§c."
                         ), false);
                         sender.getServer().execute(() ->
@@ -121,14 +124,13 @@ public class ChatEventHandler {
 
                     case ALREADY_MUTED -> {
                         long until = PunishmentManager.getMutedUntilMs(uuid);
-                        sender.sendMessage(txt("§c\uD83D\uDD07 §7Still muted — §f" + fmt(until) + " §7left."), false);
+                        sender.sendMessage(Text.literal("§c\uD83D\uDD07 §7Still muted — §f" + fmt(until) + " §7left."), false);
                         return false;
                     }
 
                     case BANNED -> { return false; }
                 }
 
-                // Let the already-decorated (censored) message through
                 return true;
             }
         );
@@ -143,8 +145,6 @@ public class ChatEventHandler {
             .stream().filter(p -> p.hasPermissionLevel(2))
             .forEach(p -> p.sendMessage(t, false));
     }
-
-    private static Text txt(String s) { return Text.literal(s); }
 
     private static String fmt(long untilMs) {
         if (untilMs == Long.MAX_VALUE) return "permanently";

@@ -144,7 +144,7 @@ public abstract class ServerPlayNetworkHandlerMixin {
 
     private static Text msg(String s) { return Text.literal(s); }
 
-    static String fmt(long untilMs) {
+    private static String fmt(long untilMs) {
         if (untilMs == Long.MAX_VALUE) return "permanently";
         long diff = untilMs - System.currentTimeMillis();
         if (diff <= 0) return "0s";

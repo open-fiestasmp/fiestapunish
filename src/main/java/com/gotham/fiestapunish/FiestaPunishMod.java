@@ -14,6 +14,7 @@ public class FiestaPunishMod implements ModInitializer {
         LOGGER.info("[FiestaPunish] Loading...");
         FilterConfig.load();
         PunishmentManager.load();
+        ChatEventHandler.register();
         FiestaCommands.register();
         LOGGER.info("[FiestaPunish] Ready — {} words, {} phrases loaded.",
                 FilterConfig.getWordCount(), FilterConfig.getPhraseCount());

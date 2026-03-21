@@ -9,7 +9,7 @@ A server-side Fabric 1.21.1 mod for Fiesta SMP that filters inappropriate langua
 ## Features
 
 - Censors bad words and phrases with `######`
-- Detects leetspeak and Unicode tricks
+- Detects leetspeak and Unicode character substitutions
 - Automatic punishment ladder: warn → mute → kick → ban
 - Staff notifications on every punishment
 - Fully configurable via in-game commands or JSON files

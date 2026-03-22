@@ -2,58 +2,44 @@ package com.gotham.fiestapunish;
 
 import net.fabricmc.fabric.api.message.v1.ServerMessageDecoratorEvent;
 import net.fabricmc.fabric.api.message.v1.ServerMessageEvents;
-import net.minecraft.network.chat.Component;
-import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.text.Text;
 
 import java.util.concurrent.TimeUnit;
 
-/**
- * Mojang mappings — confirmed from fabric-api 1.21.11 source:
- *   Decorator:          (sender, message) -> Component   [inferred types]
- *   ALLOW_CHAT_MESSAGE: (message, sender, params) -> boolean
- *   ServerPlayer:       net.minecraft.server.level.ServerPlayer
- *   Component:          net.minecraft.network.chat.Component
- *   message.signedContent() -> String   [confirmed from ChatTest.java]
- *   player.sendSystemMessage(Component) [confirmed from networking test]
- *   player.getStringUUID()              [confirmed from fabric-api source]
- *   player.connection.disconnect(Component)
- *   server.getPlayerList().getPlayers()
- *   player.hasPermissions(int)
- */
 public class ChatEventHandler {
 
     public static void register() {
 
-        // Rewrite banned content with ##### before broadcast
+        // Censor bad words in message before broadcast
         ServerMessageDecoratorEvent.EVENT.register(
             ServerMessageDecoratorEvent.CONTENT_PHASE,
             (sender, message) -> {
                 if (sender == null) return message;
                 ChatFilterEngine.FilterResult r = ChatFilterEngine.filter(message.getString());
-                return r.wasCensored ? Component.literal(r.filtered) : message;
+                return r.wasCensored ? Text.literal(r.filtered) : message;
             }
         );
 
-        // Block muted/banned players; record offences and apply punishments
+        // Block muted/banned; record offences and punish
         ServerMessageEvents.ALLOW_CHAT_MESSAGE.register(
             (message, sender, params) -> {
                 if (sender == null) return true;
 
-                String uuid = sender.getStringUUID();
+                String uuid = sender.getUuidAsString();
                 String name = sender.getName().getString();
 
                 if (PunishmentManager.isBanned(uuid)) {
                     long until = PunishmentManager.getBannedUntilMs(uuid);
-                    sender.sendSystemMessage(Component.literal(until == Long.MAX_VALUE
+                    sender.sendMessage(Text.literal(until == Long.MAX_VALUE
                         ? "§c✖ §7You are permanently banned from chat."
-                        : "§c✖ §7Chat banned for §f" + fmt(until) + "§7."));
+                        : "§c✖ §7Chat banned for §f" + fmt(until) + "§7."), false);
                     return false;
                 }
 
                 if (PunishmentManager.isMuted(uuid)) {
-                    sender.sendSystemMessage(Component.literal(
-                        "§c\uD83D\uDD07 §7You are muted. Expires in §f"
-                        + fmt(PunishmentManager.getMutedUntilMs(uuid)) + "§7."));
+                    sender.sendMessage(Text.literal("§c\uD83D\uDD07 §7You are muted. Expires in §f"
+                        + fmt(PunishmentManager.getMutedUntilMs(uuid)) + "§7."), false);
                     return false;
                 }
 
@@ -69,52 +55,51 @@ public class ChatEventHandler {
                 int left  = PunishmentManager.WARNS_BEFORE_MUTE - warns;
 
                 switch (action) {
-                    case WARN -> sender.sendSystemMessage(Component.literal(
+                    case WARN -> sender.sendMessage(Text.literal(
                         "§e⚠ §7Watch your language! §8[Warning §c" + warns + "§8/§c"
-                        + PunishmentManager.WARNS_BEFORE_MUTE + "§8 — §e" + left + " left§8]"));
+                        + PunishmentManager.WARNS_BEFORE_MUTE + "§8 — §e" + left + " left§8]"), false);
 
                     case MUTE_SHORT -> {
-                        sender.sendSystemMessage(Component.literal("§c\uD83D\uDD07 §7Muted for §f"
-                            + PunishmentManager.MUTE_SHORT_MINS + " minutes§7."));
+                        sender.sendMessage(Text.literal("§c\uD83D\uDD07 §7Muted for §f"
+                            + PunishmentManager.MUTE_SHORT_MINS + " minutes§7."), false);
                         notifyStaff(sender, "§7" + name + " muted §c" + PunishmentManager.MUTE_SHORT_MINS + "min");
                         FiestaPunishMod.LOGGER.info("[FiestaPunish] {} muted {}min.", name, PunishmentManager.MUTE_SHORT_MINS);
                     }
 
                     case KICK_AND_MUTE_LONG -> {
-                        sender.sendSystemMessage(Component.literal("§4✖ §cMuted 24h and being kicked."));
-                        sender.getServer().execute(() -> sender.connection.disconnect(
-                            Component.literal("§cKicked by FiestaPunish\n§7Muted 3 times. Chat locked 24h.\n§eYou may rejoin.")));
+                        sender.sendMessage(Text.literal("§4✖ §cMuted 24h and being kicked."), false);
+                        sender.getServer().execute(() -> sender.networkHandler.disconnect(
+                            Text.literal("§cKicked by FiestaPunish\n§7Muted 3 times. Chat locked 24h.\n§eYou may rejoin.")));
                         notifyStaff(sender, "§7" + name + " kicked & muted §c24h");
                         FiestaPunishMod.LOGGER.info("[FiestaPunish] {} kicked + muted 24h.", name);
                     }
 
                     case BAN -> {
-                        sender.getServer().execute(() -> sender.connection.disconnect(
-                            Component.literal("§c§lYou have been BANNED\n§r§7Reason: Muted 5 times in one month.")));
+                        sender.getServer().execute(() -> sender.networkHandler.disconnect(
+                            Text.literal("§c§lYou have been BANNED\n§r§7Reason: Muted 5 times in one month.")));
                         notifyStaff(sender, "§c§l" + name + " §r§7BANNED");
                         FiestaPunishMod.LOGGER.info("[FiestaPunish] {} BANNED.", name);
                     }
 
                     case ALREADY_MUTED -> {
-                        sender.sendSystemMessage(Component.literal("§c\uD83D\uDD07 §7Still muted — §f"
-                            + fmt(PunishmentManager.getMutedUntilMs(uuid)) + " §7left."));
+                        sender.sendMessage(Text.literal("§c\uD83D\uDD07 §7Still muted — §f"
+                            + fmt(PunishmentManager.getMutedUntilMs(uuid)) + " §7left."), false);
                         return false;
                     }
 
                     case BANNED -> { return false; }
                 }
-
                 return true;
             }
         );
     }
 
-    private static void notifyStaff(ServerPlayer sender, String msg) {
+    private static void notifyStaff(ServerPlayerEntity sender, String msg) {
         if (sender.getServer() == null) return;
-        Component t = Component.literal("§8[§6FiestaPunish§8] " + msg);
-        sender.getServer().getPlayerList().getPlayers()
-            .stream().filter(p -> p.hasPermissions(2))
-            .forEach(p -> p.sendSystemMessage(t));
+        Text t = Text.literal("§8[§6FiestaPunish§8] " + msg);
+        sender.getServer().getPlayerManager().getPlayerList()
+            .stream().filter(p -> p.hasPermissionLevel(2))
+            .forEach(p -> p.sendMessage(t, false));
     }
 
     private static String fmt(long untilMs) {

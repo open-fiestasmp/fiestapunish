@@ -44,11 +44,9 @@ public class FilterConfig {
     public static void load() {
         try {
             Files.createDirectories(CONFIG_DIR);
-            loadWords();
-            loadPhrases();
-            loadSettings();
+            loadWords(); loadPhrases(); loadSettings();
         } catch (IOException e) {
-            FiestaPunishMod.LOGGER.error("[FiestaPunish] Config load error: {}", e.getMessage());
+            FiestaPunishMod.LOGGER.error("[FiestaPunish] Config error: {}", e.getMessage());
         }
     }
 
@@ -81,17 +79,14 @@ public class FilterConfig {
     }
 
     private static void loadSettings() throws IOException {
-        if (!Files.exists(SETTINGS_FILE)) {
-            saveSettings();
-        } else {
-            try (Reader r = Files.newBufferedReader(SETTINGS_FILE)) {
-                Type t = new TypeToken<Map<String, Object>>(){}.getType();
-                Map<String, Object> m = GSON.fromJson(r, t);
-                if (m != null) {
-                    if (m.containsKey("censorChar"))    censorChar    = (String)  m.get("censorChar");
-                    if (m.containsKey("logToConsole"))  logToConsole  = (Boolean) m.get("logToConsole");
-                    if (m.containsKey("wholeWordOnly")) wholeWordOnly = (Boolean) m.get("wholeWordOnly");
-                }
+        if (!Files.exists(SETTINGS_FILE)) { saveSettings(); return; }
+        try (Reader r = Files.newBufferedReader(SETTINGS_FILE)) {
+            Type t = new TypeToken<Map<String, Object>>(){}.getType();
+            Map<String, Object> m = GSON.fromJson(r, t);
+            if (m != null) {
+                if (m.containsKey("censorChar"))    censorChar    = (String)  m.get("censorChar");
+                if (m.containsKey("logToConsole"))  logToConsole  = (Boolean) m.get("logToConsole");
+                if (m.containsKey("wholeWordOnly")) wholeWordOnly = (Boolean) m.get("wholeWordOnly");
             }
         }
     }
@@ -99,31 +94,20 @@ public class FilterConfig {
     public static void saveSettings() {
         try (Writer w = Files.newBufferedWriter(SETTINGS_FILE)) {
             Map<String, Object> m = new LinkedHashMap<>();
-            m.put("censorChar", censorChar);
-            m.put("logToConsole", logToConsole);
-            m.put("wholeWordOnly", wholeWordOnly);
+            m.put("censorChar", censorChar); m.put("logToConsole", logToConsole); m.put("wholeWordOnly", wholeWordOnly);
             GSON.toJson(m, w);
-        } catch (IOException e) {
-            FiestaPunishMod.LOGGER.error("[FiestaPunish] Failed to save settings: {}", e.getMessage());
-        }
+        } catch (IOException e) { FiestaPunishMod.LOGGER.error("[FiestaPunish] Save error: {}", e.getMessage()); }
     }
 
     public static void saveWords() {
         try (Writer w = Files.newBufferedWriter(WORDS_FILE)) {
-            List<String> sorted = new ArrayList<>(bannedWords);
-            Collections.sort(sorted);
-            GSON.toJson(sorted, w);
-        } catch (IOException e) {
-            FiestaPunishMod.LOGGER.error("[FiestaPunish] Failed to save words: {}", e.getMessage());
-        }
+            List<String> s = new ArrayList<>(bannedWords); Collections.sort(s); GSON.toJson(s, w);
+        } catch (IOException e) { FiestaPunishMod.LOGGER.error("[FiestaPunish] Save words error: {}", e.getMessage()); }
     }
 
     public static void savePhrases() {
-        try (Writer w = Files.newBufferedWriter(PHRASES_FILE)) {
-            GSON.toJson(bannedPhrases, w);
-        } catch (IOException e) {
-            FiestaPunishMod.LOGGER.error("[FiestaPunish] Failed to save phrases: {}", e.getMessage());
-        }
+        try (Writer w = Files.newBufferedWriter(PHRASES_FILE)) { GSON.toJson(bannedPhrases, w); }
+        catch (IOException e) { FiestaPunishMod.LOGGER.error("[FiestaPunish] Save phrases error: {}", e.getMessage()); }
     }
 
     public static Set<String>  getBannedWords()   { return bannedWords; }
@@ -138,31 +122,19 @@ public class FilterConfig {
     public static void setLogToConsole(boolean b)  { logToConsole  = b; saveSettings(); }
     public static void setWholeWordOnly(boolean b) { wholeWordOnly = b; saveSettings(); }
 
-    public static boolean addWord(String word) {
-        boolean added = bannedWords.add(word.toLowerCase(Locale.ROOT));
-        if (added) saveWords();
-        return added;
+    public static boolean addWord(String w) {
+        boolean a = bannedWords.add(w.toLowerCase(Locale.ROOT)); if (a) saveWords(); return a;
     }
-
-    public static boolean removeWord(String word) {
-        boolean removed = bannedWords.remove(word.toLowerCase(Locale.ROOT));
-        if (removed) saveWords();
-        return removed;
+    public static boolean removeWord(String w) {
+        boolean r = bannedWords.remove(w.toLowerCase(Locale.ROOT)); if (r) saveWords(); return r;
     }
-
-    public static boolean addPhrase(String phrase) {
-        String p = phrase.toLowerCase(Locale.ROOT);
-        if (bannedPhrases.contains(p)) return false;
-        bannedPhrases.add(p);
-        savePhrases();
-        return true;
+    public static boolean addPhrase(String p) {
+        String pl = p.toLowerCase(Locale.ROOT);
+        if (bannedPhrases.contains(pl)) return false;
+        bannedPhrases.add(pl); savePhrases(); return true;
     }
-
-    public static boolean removePhrase(String phrase) {
-        boolean removed = bannedPhrases.remove(phrase.toLowerCase(Locale.ROOT));
-        if (removed) savePhrases();
-        return removed;
+    public static boolean removePhrase(String p) {
+        boolean r = bannedPhrases.remove(p.toLowerCase(Locale.ROOT)); if (r) savePhrases(); return r;
     }
-
     public static void reload() { load(); }
 }

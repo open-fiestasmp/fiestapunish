@@ -13,36 +13,18 @@ import java.time.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Tracks per-player warn/mute/ban state and enforces the punishment ladder:
- *
- *   Offence          → Action
- *   ─────────────────────────────────────────────────────────────────────
- *   Bad word / phrase → WARNING  (private message, counter incremented)
- *   30 warns / day    → MUTE 30 min  (warn counter reset)
- *   3 × short mute    → KICK + MUTE 24h  (short-mute counter reset)
- *   5 mutes / month   → PERMANENT BAN
- *
- * Daily warn counter resets at UTC midnight.
- * Monthly counters reset on the first day of each UTC month.
- * All data persists to config/fiestapunish/punishments.json.
- */
 public class PunishmentManager {
 
-    public static final int  WARNS_BEFORE_MUTE       = 30;
-    public static final int  MUTES_BEFORE_KICK_MUTE  = 3;
-    public static final int  MUTES_BEFORE_BAN         = 5;
-    public static final long MUTE_SHORT_MINS          = 30;
-    public static final long MUTE_LONG_HOURS          = 24;
+    public static final int  WARNS_BEFORE_MUTE      = 30;
+    public static final int  MUTES_BEFORE_KICK_MUTE = 3;
+    public static final int  MUTES_BEFORE_BAN        = 5;
+    public static final long MUTE_SHORT_MINS         = 30;
+    public static final long MUTE_LONG_HOURS         = 24;
 
     private static final Path DATA_FILE =
-            FabricLoader.getInstance().getConfigDir()
-                    .resolve("fiestapunish").resolve("punishments.json");
-
+        FabricLoader.getInstance().getConfigDir().resolve("fiestapunish").resolve("punishments.json");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Map<String, PlayerRecord> RECORDS = new ConcurrentHashMap<>();
-
-    // ── Init ─────────────────────────────────────────────────────────────────
 
     public static void load() {
         if (!Files.exists(DATA_FILE)) return;
@@ -58,35 +40,26 @@ public class PunishmentManager {
     public static void save() {
         try {
             Files.createDirectories(DATA_FILE.getParent());
-            try (Writer w = Files.newBufferedWriter(DATA_FILE)) {
-                GSON.toJson(RECORDS, w);
-            }
+            try (Writer w = Files.newBufferedWriter(DATA_FILE)) { GSON.toJson(RECORDS, w); }
         } catch (IOException e) {
             FiestaPunishMod.LOGGER.error("[FiestaPunish] Failed to save punishments: {}", e.getMessage());
         }
     }
 
-    // ── Main logic ────────────────────────────────────────────────────────────
-
-    /** Called on every filter hit. Returns the Action the caller should perform. */
     public static Action recordOffence(String uuid, String playerName) {
         PlayerRecord rec = RECORDS.computeIfAbsent(uuid, k -> new PlayerRecord());
         rec.resetIfNeeded();
 
-        // Already permanently banned?
         if (rec.bannedUntil != null) {
             if (rec.bannedUntil == Long.MAX_VALUE || System.currentTimeMillis() < rec.bannedUntil)
                 return Action.BANNED;
-            else
-                rec.bannedUntil = null; // expired
+            else rec.bannedUntil = null;
         }
 
-        // Already muted?
         if (rec.mutedUntil != null) {
             if (System.currentTimeMillis() < rec.mutedUntil)
                 return Action.ALREADY_MUTED;
-            else
-                rec.mutedUntil = null; // expired
+            else rec.mutedUntil = null;
         }
 
         rec.warnsToday++;
@@ -97,14 +70,12 @@ public class PunishmentManager {
             rec.mutesThisMonth++;
             rec.shortMutesThisRound++;
 
-            // Check ban first
             if (rec.mutesThisMonth >= MUTES_BEFORE_BAN) {
                 rec.bannedUntil = Long.MAX_VALUE;
                 save();
                 return Action.BAN;
             }
 
-            // Check kick + long mute
             if (rec.shortMutesThisRound >= MUTES_BEFORE_KICK_MUTE) {
                 rec.shortMutesThisRound = 0;
                 rec.mutedUntil = System.currentTimeMillis() + hoursToMs(MUTE_LONG_HOURS);
@@ -112,7 +83,6 @@ public class PunishmentManager {
                 return Action.KICK_AND_MUTE_LONG;
             }
 
-            // Normal short mute
             rec.mutedUntil = System.currentTimeMillis() + minsToMs(MUTE_SHORT_MINS);
             save();
             return Action.MUTE_SHORT;
@@ -120,8 +90,6 @@ public class PunishmentManager {
 
         return Action.WARN;
     }
-
-    // ── Query helpers ─────────────────────────────────────────────────────────
 
     public static boolean isMuted(String uuid) {
         PlayerRecord rec = RECORDS.get(uuid);
@@ -140,14 +108,12 @@ public class PunishmentManager {
 
     public static long getMutedUntilMs(String uuid) {
         PlayerRecord rec = RECORDS.get(uuid);
-        if (rec == null) return 0;
-        return rec.mutedUntil != null ? rec.mutedUntil : 0;
+        return (rec == null || rec.mutedUntil == null) ? 0 : rec.mutedUntil;
     }
 
     public static long getBannedUntilMs(String uuid) {
         PlayerRecord rec = RECORDS.get(uuid);
-        if (rec == null) return 0;
-        return rec.bannedUntil != null ? rec.bannedUntil : 0;
+        return (rec == null || rec.bannedUntil == null) ? 0 : rec.bannedUntil;
     }
 
     public static int getWarnsToday(String uuid) {
@@ -159,45 +125,26 @@ public class PunishmentManager {
 
     public static PlayerRecord getRecord(String uuid) { return RECORDS.get(uuid); }
 
-    // ── Admin helpers ─────────────────────────────────────────────────────────
-
     public static boolean unmute(String uuid) {
         PlayerRecord rec = RECORDS.get(uuid);
         if (rec == null) return false;
-        rec.mutedUntil = null;
-        save();
-        return true;
+        rec.mutedUntil = null; save(); return true;
     }
 
     public static boolean unban(String uuid) {
         PlayerRecord rec = RECORDS.get(uuid);
         if (rec == null) return false;
-        rec.bannedUntil = null;
-        save();
-        return true;
+        rec.bannedUntil = null; save(); return true;
     }
 
     public static boolean reset(String uuid) {
-        boolean had = RECORDS.remove(uuid) != null;
-        save();
-        return had;
+        boolean had = RECORDS.remove(uuid) != null; save(); return had;
     }
-
-    // ── Util ──────────────────────────────────────────────────────────────────
 
     private static long minsToMs(long m)  { return m * 60_000L; }
     private static long hoursToMs(long h) { return h * 3_600_000L; }
 
-    // ── Enums / inner classes ─────────────────────────────────────────────────
-
-    public enum Action {
-        WARN,
-        MUTE_SHORT,
-        KICK_AND_MUTE_LONG,
-        BAN,
-        ALREADY_MUTED,
-        BANNED
-    }
+    public enum Action { WARN, MUTE_SHORT, KICK_AND_MUTE_LONG, BAN, ALREADY_MUTED, BANNED }
 
     public static class PlayerRecord {
         public int    warnsToday          = 0;
@@ -209,20 +156,13 @@ public class PunishmentManager {
         public String monthKey            = monthKey();
 
         public void resetIfNeeded() {
-            String today = todayKey();
-            String month = monthKey();
+            String today = todayKey(), month = monthKey();
             if (!today.equals(dayKey))  { warnsToday = 0; dayKey = today; }
-            if (!month.equals(monthKey)) {
-                mutesThisMonth      = 0;
-                shortMutesThisRound = 0;
-                monthKey = month;
-            }
+            if (!month.equals(monthKey)) { mutesThisMonth = 0; shortMutesThisRound = 0; monthKey = month; }
         }
     }
 
-    private static String todayKey() {
-        return LocalDate.now(ZoneOffset.UTC).toString();
-    }
+    private static String todayKey() { return LocalDate.now(ZoneOffset.UTC).toString(); }
     private static String monthKey() {
         LocalDate d = LocalDate.now(ZoneOffset.UTC);
         return d.getYear() + "-" + d.getMonthValue();

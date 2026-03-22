@@ -3,21 +3,14 @@
   "id": "fiestapunish",
   "version": "${version}",
   "name": "FiestaPunish",
-  "description": "Advanced chat filter and punishment system for Fabric 1.21.11 servers.",
-  "authors": [
-    "Fiesta SMP"
-  ],
-  "contact": {},
+  "description": "Chat filter and punishment system for Fiesta SMP. Built with Claude AI.",
+  "authors": ["Fiesta SMP"],
   "license": "MIT",
   "environment": "server",
   "entrypoints": {
-    "main": [
-      "com.gotham.fiestapunish.FiestaPunishMod"
-    ]
+    "main": ["com.gotham.fiestapunish.FiestaPunishMod"]
   },
-  "mixins": [
-    "fiestapunish.mixins.json"
-  ],
+  "mixins": ["fiestapunish.mixins.json"],
   "depends": {
     "fabricloader": ">=0.18.0",
     "fabric-api": "*",

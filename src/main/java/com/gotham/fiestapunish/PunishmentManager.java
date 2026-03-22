@@ -46,7 +46,7 @@ public class PunishmentManager {
         }
     }
 
-    public static Action recordOffence(String uuid, String playerName) {
+    public static Action recordOffence(String uuid, String name) {
         PlayerRecord rec = RECORDS.computeIfAbsent(uuid, k -> new PlayerRecord());
         rec.resetIfNeeded();
 
@@ -55,10 +55,8 @@ public class PunishmentManager {
                 return Action.BANNED;
             else rec.bannedUntil = null;
         }
-
         if (rec.mutedUntil != null) {
-            if (System.currentTimeMillis() < rec.mutedUntil)
-                return Action.ALREADY_MUTED;
+            if (System.currentTimeMillis() < rec.mutedUntil) return Action.ALREADY_MUTED;
             else rec.mutedUntil = null;
         }
 
@@ -71,70 +69,62 @@ public class PunishmentManager {
             rec.shortMutesThisRound++;
 
             if (rec.mutesThisMonth >= MUTES_BEFORE_BAN) {
-                rec.bannedUntil = Long.MAX_VALUE;
-                save();
-                return Action.BAN;
+                rec.bannedUntil = Long.MAX_VALUE; save(); return Action.BAN;
             }
-
             if (rec.shortMutesThisRound >= MUTES_BEFORE_KICK_MUTE) {
                 rec.shortMutesThisRound = 0;
                 rec.mutedUntil = System.currentTimeMillis() + hoursToMs(MUTE_LONG_HOURS);
-                save();
-                return Action.KICK_AND_MUTE_LONG;
+                save(); return Action.KICK_AND_MUTE_LONG;
             }
-
             rec.mutedUntil = System.currentTimeMillis() + minsToMs(MUTE_SHORT_MINS);
-            save();
-            return Action.MUTE_SHORT;
+            save(); return Action.MUTE_SHORT;
         }
-
         return Action.WARN;
     }
 
     public static boolean isMuted(String uuid) {
-        PlayerRecord rec = RECORDS.get(uuid);
-        if (rec == null) return false;
-        rec.resetIfNeeded();
-        return rec.mutedUntil != null && System.currentTimeMillis() < rec.mutedUntil;
+        PlayerRecord r = RECORDS.get(uuid);
+        if (r == null) return false;
+        r.resetIfNeeded();
+        return r.mutedUntil != null && System.currentTimeMillis() < r.mutedUntil;
     }
 
     public static boolean isBanned(String uuid) {
-        PlayerRecord rec = RECORDS.get(uuid);
-        if (rec == null) return false;
-        if (rec.bannedUntil == null) return false;
-        if (rec.bannedUntil == Long.MAX_VALUE) return true;
-        return System.currentTimeMillis() < rec.bannedUntil;
+        PlayerRecord r = RECORDS.get(uuid);
+        if (r == null || r.bannedUntil == null) return false;
+        if (r.bannedUntil == Long.MAX_VALUE) return true;
+        return System.currentTimeMillis() < r.bannedUntil;
     }
 
     public static long getMutedUntilMs(String uuid) {
-        PlayerRecord rec = RECORDS.get(uuid);
-        return (rec == null || rec.mutedUntil == null) ? 0 : rec.mutedUntil;
+        PlayerRecord r = RECORDS.get(uuid);
+        return (r == null || r.mutedUntil == null) ? 0 : r.mutedUntil;
     }
 
     public static long getBannedUntilMs(String uuid) {
-        PlayerRecord rec = RECORDS.get(uuid);
-        return (rec == null || rec.bannedUntil == null) ? 0 : rec.bannedUntil;
+        PlayerRecord r = RECORDS.get(uuid);
+        return (r == null || r.bannedUntil == null) ? 0 : r.bannedUntil;
     }
 
     public static int getWarnsToday(String uuid) {
-        PlayerRecord rec = RECORDS.get(uuid);
-        if (rec == null) return 0;
-        rec.resetIfNeeded();
-        return rec.warnsToday;
+        PlayerRecord r = RECORDS.get(uuid);
+        if (r == null) return 0;
+        r.resetIfNeeded();
+        return r.warnsToday;
     }
 
     public static PlayerRecord getRecord(String uuid) { return RECORDS.get(uuid); }
 
     public static boolean unmute(String uuid) {
-        PlayerRecord rec = RECORDS.get(uuid);
-        if (rec == null) return false;
-        rec.mutedUntil = null; save(); return true;
+        PlayerRecord r = RECORDS.get(uuid);
+        if (r == null) return false;
+        r.mutedUntil = null; save(); return true;
     }
 
     public static boolean unban(String uuid) {
-        PlayerRecord rec = RECORDS.get(uuid);
-        if (rec == null) return false;
-        rec.bannedUntil = null; save(); return true;
+        PlayerRecord r = RECORDS.get(uuid);
+        if (r == null) return false;
+        r.bannedUntil = null; save(); return true;
     }
 
     public static boolean reset(String uuid) {
@@ -147,13 +137,9 @@ public class PunishmentManager {
     public enum Action { WARN, MUTE_SHORT, KICK_AND_MUTE_LONG, BAN, ALREADY_MUTED, BANNED }
 
     public static class PlayerRecord {
-        public int    warnsToday          = 0;
-        public int    mutesThisMonth      = 0;
-        public int    shortMutesThisRound = 0;
-        public Long   mutedUntil          = null;
-        public Long   bannedUntil         = null;
-        public String dayKey              = todayKey();
-        public String monthKey            = monthKey();
+        public int    warnsToday = 0, mutesThisMonth = 0, shortMutesThisRound = 0;
+        public Long   mutedUntil = null, bannedUntil = null;
+        public String dayKey = todayKey(), monthKey = monthKey();
 
         public void resetIfNeeded() {
             String today = todayKey(), month = monthKey();

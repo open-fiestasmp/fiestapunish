@@ -13,28 +13,26 @@ public class ChatFilterEngine {
         char[] chars = original.toCharArray();
         boolean censored = false;
 
-        // Phrases first
         for (String phrase : FilterConfig.getBannedPhrases()) {
             if (phrase.isEmpty()) continue;
-            String normPhrase = normalize(phrase).toLowerCase(Locale.ROOT);
-            String normMsg = normalized.toLowerCase(Locale.ROOT);
-            int idx = normMsg.indexOf(normPhrase);
+            String np = normalize(phrase).toLowerCase(Locale.ROOT);
+            String nm = normalized.toLowerCase(Locale.ROOT);
+            int idx = nm.indexOf(np);
             while (idx >= 0) {
-                maskChars(chars, idx, idx + normPhrase.length());
+                maskChars(chars, idx, idx + np.length());
                 censored = true;
-                idx = normMsg.indexOf(normPhrase, idx + normPhrase.length());
+                idx = nm.indexOf(np, idx + np.length());
             }
         }
 
-        // Individual words
         for (String word : FilterConfig.getBannedWords()) {
             if (word.isEmpty()) continue;
-            String normWord = normalize(word).toLowerCase(Locale.ROOT);
-            String normMsg  = normalized.toLowerCase(Locale.ROOT);
+            String nw = normalize(word).toLowerCase(Locale.ROOT);
+            String nm = normalized.toLowerCase(Locale.ROOT);
             String pat = FilterConfig.isWholeWordOnly()
-                ? "(?i)\\b" + Pattern.quote(normWord) + "\\b"
-                : "(?i)" + Pattern.quote(normWord);
-            Matcher m = Pattern.compile(pat).matcher(normMsg);
+                ? "(?i)\\b" + Pattern.quote(nw) + "\\b"
+                : "(?i)" + Pattern.quote(nw);
+            Matcher m = Pattern.compile(pat).matcher(nm);
             while (m.find()) {
                 maskChars(chars, m.start(), m.end());
                 censored = true;
@@ -48,12 +46,11 @@ public class ChatFilterEngine {
         StringBuilder sb = new StringBuilder(input.length());
         for (int i = 0; i < input.length(); ) {
             int cp = input.codePointAt(i);
-            int cpLen = Character.charCount(cp);
-            String cpNfkd = Normalizer.normalize(new String(Character.toChars(cp)), Normalizer.Form.NFKD);
-            String base = cpNfkd.replaceAll("\\p{Mn}", "");
+            String nfkd = Normalizer.normalize(new String(Character.toChars(cp)), Normalizer.Form.NFKD);
+            String base = nfkd.replaceAll("\\p{Mn}", "");
             char mapped = base.isEmpty() ? (char) cp : base.charAt(0);
             sb.append(leetMap(mapped));
-            i += cpLen;
+            i += Character.charCount(cp);
         }
         while (sb.length() < input.length()) sb.append(' ');
         return sb.length() > input.length() ? sb.substring(0, input.length()) : sb.toString();
@@ -61,22 +58,11 @@ public class ChatFilterEngine {
 
     private static char leetMap(char c) {
         return switch (c) {
-            case '0' -> 'o';
-            case '1' -> 'i';
-            case '3' -> 'e';
-            case '4' -> 'a';
-            case '5' -> 's';
-            case '6' -> 'g';
-            case '7' -> 't';
-            case '8' -> 'b';
-            case '9' -> 'g';
-            case '@' -> 'a';
-            case '$' -> 's';
-            case '!' -> 'i';
-            case '+' -> 't';
-            case '|' -> 'i';
-            case '(' -> 'c';
-            case '<' -> 'c';
+            case '0' -> 'o'; case '1' -> 'i'; case '3' -> 'e';
+            case '4' -> 'a'; case '5' -> 's'; case '6' -> 'g';
+            case '7' -> 't'; case '8' -> 'b'; case '9' -> 'g';
+            case '@' -> 'a'; case '$' -> 's'; case '!' -> 'i';
+            case '+' -> 't'; case '|' -> 'i'; case '(' -> 'c'; case '<' -> 'c';
             default  -> c;
         };
     }
@@ -84,9 +70,8 @@ public class ChatFilterEngine {
     private static void maskChars(char[] chars, int start, int end) {
         String cc = FilterConfig.getCensorChar();
         char fill = (cc == null || cc.isEmpty()) ? '#' : cc.charAt(0);
-        for (int i = start; i < end && i < chars.length; i++) {
+        for (int i = start; i < end && i < chars.length; i++)
             if (chars[i] != ' ') chars[i] = fill;
-        }
     }
 
     public static class FilterResult {

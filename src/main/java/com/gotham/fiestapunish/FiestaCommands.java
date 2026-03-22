@@ -3,10 +3,10 @@ package com.gotham.fiestapunish;
 import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
-import net.minecraft.server.command.CommandManager;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -18,10 +18,10 @@ public class FiestaCommands {
     public static void register() {
         CommandRegistrationCallback.EVENT.register((dispatcher, reg, env) ->
             dispatcher.register(
-                CommandManager.literal("fiestapunish")
-                    .requires(src -> src.hasPermissionLevel(2))
+                Commands.literal("fiestapunish")
+                    .requires(src -> src.hasPermission(2))
 
-                    .then(CommandManager.literal("status")
+                    .then(Commands.literal("status")
                         .executes(ctx -> {
                             ok(ctx.getSource(),
                                 "§6FiestaPunish Status\n" +
@@ -34,7 +34,7 @@ public class FiestaCommands {
                         })
                     )
 
-                    .then(CommandManager.literal("reload")
+                    .then(Commands.literal("reload")
                         .executes(ctx -> {
                             FilterConfig.reload();
                             PunishmentManager.load();
@@ -44,8 +44,8 @@ public class FiestaCommands {
                         })
                     )
 
-                    .then(CommandManager.literal("words")
-                        .then(CommandManager.literal("list")
+                    .then(Commands.literal("words")
+                        .then(Commands.literal("list")
                             .executes(ctx -> {
                                 List<String> w = new ArrayList<>(FilterConfig.getBannedWords());
                                 Collections.sort(w);
@@ -53,8 +53,8 @@ public class FiestaCommands {
                                 return 1;
                             })
                         )
-                        .then(CommandManager.literal("add")
-                            .then(CommandManager.argument("word", StringArgumentType.word())
+                        .then(Commands.literal("add")
+                            .then(Commands.argument("word", StringArgumentType.word())
                                 .executes(ctx -> {
                                     String word = StringArgumentType.getString(ctx, "word");
                                     if (FilterConfig.addWord(word)) ok(ctx.getSource(), "Added: §f'" + word + "'");
@@ -63,8 +63,8 @@ public class FiestaCommands {
                                 })
                             )
                         )
-                        .then(CommandManager.literal("remove")
-                            .then(CommandManager.argument("word", StringArgumentType.word())
+                        .then(Commands.literal("remove")
+                            .then(Commands.argument("word", StringArgumentType.word())
                                 .executes(ctx -> {
                                     String word = StringArgumentType.getString(ctx, "word");
                                     if (FilterConfig.removeWord(word)) ok(ctx.getSource(), "Removed: §f'" + word + "'");
@@ -75,8 +75,8 @@ public class FiestaCommands {
                         )
                     )
 
-                    .then(CommandManager.literal("phrases")
-                        .then(CommandManager.literal("list")
+                    .then(Commands.literal("phrases")
+                        .then(Commands.literal("list")
                             .executes(ctx -> {
                                 List<String> p = FilterConfig.getBannedPhrases();
                                 StringBuilder sb = new StringBuilder("Phrases (" + p.size() + "):\n");
@@ -86,8 +86,8 @@ public class FiestaCommands {
                                 return 1;
                             })
                         )
-                        .then(CommandManager.literal("add")
-                            .then(CommandManager.argument("phrase", StringArgumentType.greedyString())
+                        .then(Commands.literal("add")
+                            .then(Commands.argument("phrase", StringArgumentType.greedyString())
                                 .executes(ctx -> {
                                     String phrase = StringArgumentType.getString(ctx, "phrase");
                                     if (FilterConfig.addPhrase(phrase)) ok(ctx.getSource(), "Added phrase.");
@@ -96,8 +96,8 @@ public class FiestaCommands {
                                 })
                             )
                         )
-                        .then(CommandManager.literal("remove")
-                            .then(CommandManager.argument("phrase", StringArgumentType.greedyString())
+                        .then(Commands.literal("remove")
+                            .then(Commands.argument("phrase", StringArgumentType.greedyString())
                                 .executes(ctx -> {
                                     String phrase = StringArgumentType.getString(ctx, "phrase");
                                     if (FilterConfig.removePhrase(phrase)) ok(ctx.getSource(), "Removed phrase.");
@@ -108,8 +108,8 @@ public class FiestaCommands {
                         )
                     )
 
-                    .then(CommandManager.literal("test")
-                        .then(CommandManager.argument("message", StringArgumentType.greedyString())
+                    .then(Commands.literal("test")
+                        .then(Commands.argument("message", StringArgumentType.greedyString())
                             .executes(ctx -> {
                                 String msg = StringArgumentType.getString(ctx, "message");
                                 ChatFilterEngine.FilterResult r = ChatFilterEngine.filter(msg);
@@ -120,9 +120,9 @@ public class FiestaCommands {
                         )
                     )
 
-                    .then(CommandManager.literal("set")
-                        .then(CommandManager.literal("censorchar")
-                            .then(CommandManager.argument("char", StringArgumentType.word())
+                    .then(Commands.literal("set")
+                        .then(Commands.literal("censorchar")
+                            .then(Commands.argument("char", StringArgumentType.word())
                                 .executes(ctx -> {
                                     String c = StringArgumentType.getString(ctx, "char");
                                     FilterConfig.setCensorChar(c);
@@ -131,8 +131,8 @@ public class FiestaCommands {
                                 })
                             )
                         )
-                        .then(CommandManager.literal("log")
-                            .then(CommandManager.argument("value", BoolArgumentType.bool())
+                        .then(Commands.literal("log")
+                            .then(Commands.argument("value", BoolArgumentType.bool())
                                 .executes(ctx -> {
                                     boolean v = BoolArgumentType.getBool(ctx, "value");
                                     FilterConfig.setLogToConsole(v);
@@ -141,8 +141,8 @@ public class FiestaCommands {
                                 })
                             )
                         )
-                        .then(CommandManager.literal("wholeword")
-                            .then(CommandManager.argument("value", BoolArgumentType.bool())
+                        .then(Commands.literal("wholeword")
+                            .then(Commands.argument("value", BoolArgumentType.bool())
                                 .executes(ctx -> {
                                     boolean v = BoolArgumentType.getBool(ctx, "value");
                                     FilterConfig.setWholeWordOnly(v);
@@ -153,13 +153,13 @@ public class FiestaCommands {
                         )
                     )
 
-                    .then(CommandManager.literal("info")
-                        .then(CommandManager.argument("player", StringArgumentType.word())
+                    .then(Commands.literal("info")
+                        .then(Commands.argument("player", StringArgumentType.word())
                             .executes(ctx -> {
                                 String name = StringArgumentType.getString(ctx, "player");
-                                ServerPlayerEntity t = ctx.getSource().getServer().getPlayerManager().getPlayer(name);
+                                ServerPlayer t = ctx.getSource().getServer().getPlayerList().getPlayerByName(name);
                                 if (t == null) { err(ctx.getSource(), "'§f" + name + "§r' not online."); return 0; }
-                                String uuid = t.getUuidAsString();
+                                String uuid = t.getStringUUID();
                                 PunishmentManager.PlayerRecord rec = PunishmentManager.getRecord(uuid);
                                 if (rec == null) { ok(ctx.getSource(), "§f" + name + " §7is clean."); return 1; }
                                 rec.resetIfNeeded();
@@ -175,40 +175,40 @@ public class FiestaCommands {
                         )
                     )
 
-                    .then(CommandManager.literal("unmute")
-                        .then(CommandManager.argument("player", StringArgumentType.word())
+                    .then(Commands.literal("unmute")
+                        .then(Commands.argument("player", StringArgumentType.word())
                             .executes(ctx -> {
                                 String name = StringArgumentType.getString(ctx, "player");
-                                ServerPlayerEntity t = ctx.getSource().getServer().getPlayerManager().getPlayer(name);
+                                ServerPlayer t = ctx.getSource().getServer().getPlayerList().getPlayerByName(name);
                                 if (t == null) { err(ctx.getSource(), "'§f" + name + "§r' not online."); return 0; }
-                                PunishmentManager.unmute(t.getUuidAsString());
+                                PunishmentManager.unmute(t.getStringUUID());
                                 ok(ctx.getSource(), "§f" + name + " §7unmuted.");
-                                t.sendMessage(Text.literal("§a✔ §7Your mute was lifted by staff."), false);
+                                t.sendSystemMessage(Component.literal("§a✔ §7Your mute was lifted by staff."));
                                 return 1;
                             })
                         )
                     )
 
-                    .then(CommandManager.literal("unban")
-                        .then(CommandManager.argument("player", StringArgumentType.word())
+                    .then(Commands.literal("unban")
+                        .then(Commands.argument("player", StringArgumentType.word())
                             .executes(ctx -> {
                                 String name = StringArgumentType.getString(ctx, "player");
-                                ServerPlayerEntity t = ctx.getSource().getServer().getPlayerManager().getPlayer(name);
+                                ServerPlayer t = ctx.getSource().getServer().getPlayerList().getPlayerByName(name);
                                 if (t == null) { err(ctx.getSource(), "'§f" + name + "§r' not online."); return 0; }
-                                PunishmentManager.unban(t.getUuidAsString());
+                                PunishmentManager.unban(t.getStringUUID());
                                 ok(ctx.getSource(), "§f" + name + " §7unbanned from chat.");
                                 return 1;
                             })
                         )
                     )
 
-                    .then(CommandManager.literal("reset")
-                        .then(CommandManager.argument("player", StringArgumentType.word())
+                    .then(Commands.literal("reset")
+                        .then(Commands.argument("player", StringArgumentType.word())
                             .executes(ctx -> {
                                 String name = StringArgumentType.getString(ctx, "player");
-                                ServerPlayerEntity t = ctx.getSource().getServer().getPlayerManager().getPlayer(name);
+                                ServerPlayer t = ctx.getSource().getServer().getPlayerList().getPlayerByName(name);
                                 if (t == null) { err(ctx.getSource(), "'§f" + name + "§r' not online."); return 0; }
-                                PunishmentManager.reset(t.getUuidAsString());
+                                PunishmentManager.reset(t.getStringUUID());
                                 ok(ctx.getSource(), "§f" + name + " §7record reset.");
                                 return 1;
                             })
@@ -218,12 +218,12 @@ public class FiestaCommands {
         );
     }
 
-    private static void ok(ServerCommandSource src, String msg) {
-        src.sendFeedback(() -> Text.literal("§8[§6FiestaPunish§8] §r" + msg), false);
+    private static void ok(CommandSourceStack src, String msg) {
+        src.sendSuccess(() -> Component.literal("§8[§6FiestaPunish§8] §r" + msg), false);
     }
 
-    private static void err(ServerCommandSource src, String msg) {
-        src.sendFeedback(() -> Text.literal("§8[§cFiestaPunish§8] §r" + msg), false);
+    private static void err(CommandSourceStack src, String msg) {
+        src.sendSuccess(() -> Component.literal("§8[§cFiestaPunish§8] §r" + msg), false);
     }
 
     private static String fmtMs(long untilMs) {

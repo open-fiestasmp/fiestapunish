@@ -19,7 +19,7 @@ public class FiestaCommands {
         CommandRegistrationCallback.EVENT.register((dispatcher, reg, env) ->
             dispatcher.register(
                 CommandManager.literal("fiestapunish")
-                    .requires(src -> src.hasPermissionLevel(2))
+                    .requires(src -> src.getServer().getPlayerManager().isOperator(src.getPlayer() != null ? src.getPlayer().getGameProfile() : null) || src.getPlayer() == null)
 
                     .then(CommandManager.literal("status").executes(ctx -> {
                         ok(ctx.getSource(), "§6FiestaPunish Status\n" +

@@ -3,6 +3,7 @@ package com.gotham.fiestapunish;
 import net.fabricmc.fabric.api.message.v1.ServerMessageDecoratorEvent;
 import net.fabricmc.fabric.api.message.v1.ServerMessageEvents;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 
 import java.util.concurrent.TimeUnit;
@@ -43,12 +44,14 @@ public class ChatEventHandler {
                     return false;
                 }
 
-                ChatFilterEngine.FilterResult result = ChatFilterEngine.filter(message.signedContent());
+                // In Yarn, SignedMessage is a record — content is in signedBody().content()
+                String original = message.signedBody().content();
+                ChatFilterEngine.FilterResult result = ChatFilterEngine.filter(original);
                 if (!result.wasCensored) return true;
 
                 if (FilterConfig.isLogToConsole())
                     FiestaPunishMod.LOGGER.info("[FiestaPunish] {} | [{}] -> [{}]",
-                        name, message.signedContent(), result.filtered);
+                        name, original, result.filtered);
 
                 PunishmentManager.Action action = PunishmentManager.recordOffence(uuid, name);
                 int warns = PunishmentManager.getWarnsToday(uuid);
@@ -68,14 +71,14 @@ public class ChatEventHandler {
 
                     case KICK_AND_MUTE_LONG -> {
                         sender.sendMessage(Text.literal("§4✖ §cMuted 24h and being kicked."), false);
-                        sender.getServer().execute(() -> sender.networkHandler.disconnect(
+                        getServer(sender).execute(() -> sender.networkHandler.disconnect(
                             Text.literal("§cKicked by FiestaPunish\n§7Muted 3 times. Chat locked 24h.\n§eYou may rejoin.")));
                         notifyStaff(sender, "§7" + name + " kicked & muted §c24h");
                         FiestaPunishMod.LOGGER.info("[FiestaPunish] {} kicked + muted 24h.", name);
                     }
 
                     case BAN -> {
-                        sender.getServer().execute(() -> sender.networkHandler.disconnect(
+                        getServer(sender).execute(() -> sender.networkHandler.disconnect(
                             Text.literal("§c§lYou have been BANNED\n§r§7Reason: Muted 5 times in one month.")));
                         notifyStaff(sender, "§c§l" + name + " §r§7BANNED");
                         FiestaPunishMod.LOGGER.info("[FiestaPunish] {} BANNED.", name);
@@ -94,10 +97,17 @@ public class ChatEventHandler {
         );
     }
 
+    // In Yarn, ServerPlayerEntity doesn't expose getServer() directly —
+    // access it via the world reference
+    private static net.minecraft.server.MinecraftServer getServer(ServerPlayerEntity p) {
+        return ((ServerWorld) p.getWorld()).getServer();
+    }
+
     private static void notifyStaff(ServerPlayerEntity sender, String msg) {
-        if (sender.getServer() == null) return;
+        net.minecraft.server.MinecraftServer srv = getServer(sender);
+        if (srv == null) return;
         Text t = Text.literal("§8[§6FiestaPunish§8] " + msg);
-        sender.getServer().getPlayerManager().getPlayerList()
+        srv.getPlayerManager().getPlayerList()
             .stream().filter(p -> p.hasPermissionLevel(2))
             .forEach(p -> p.sendMessage(t, false));
     }

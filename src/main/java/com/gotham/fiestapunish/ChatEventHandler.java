@@ -9,20 +9,18 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Chat filter and punishment handler for Minecraft 1.21.11 / fabric-api 0.141.3
+ * Compiled with Yarn mappings — all class names are Yarn names.
  *
  * Confirmed from fabric-api 1.21.11 source (ChatTest.java):
- *   - Decorator lambda: (sender, message) -> Text  [inferred, no explicit types needed]
- *   - ALLOW_CHAT_MESSAGE: (message, sender, params) -> boolean
- *   - message.signedContent() returns String (confirmed from ChatTest line 80)
- *   - No CompletableFuture anywhere
+ *   - Decorator lambda inferred: (sender, message) -> Text
+ *   - ALLOW_CHAT_MESSAGE lambda inferred: (message, sender, params) -> boolean
+ *   - message.signedContent() returns String
  */
 public class ChatEventHandler {
 
     public static void register() {
 
         // ── 1. Rewrite message content with censored text ─────────────────────
-        // Decorator confirmed from fabric-api 1.21.11 ChatTest.java:
-        //   ServerMessageDecoratorEvent.EVENT.register(CONTENT_PHASE, (sender, message) -> { ... })
         ServerMessageDecoratorEvent.EVENT.register(
             ServerMessageDecoratorEvent.CONTENT_PHASE,
             (sender, message) -> {
@@ -35,13 +33,11 @@ public class ChatEventHandler {
         );
 
         // ── 2. Block muted/banned players + apply punishments ─────────────────
-        // Confirmed from fabric-api 1.21.11 ChatTest.java:
-        //   ServerMessageEvents.ALLOW_CHAT_MESSAGE.register((message, sender, params) -> ...)
-        //   message.signedContent() -> String
         ServerMessageEvents.ALLOW_CHAT_MESSAGE.register(
             (message, sender, params) -> {
                 if (sender == null) return true;
 
+                // Yarn: getUuidAsString(), getName().getString(), sendMessage(Text, bool)
                 String uuid       = sender.getUuidAsString();
                 String playerName = sender.getName().getString();
 
@@ -63,7 +59,6 @@ public class ChatEventHandler {
                 }
 
                 // Was content censored?
-                // signedContent() confirmed from fabric-api ChatTest.java line 80
                 String original = message.signedContent();
                 ChatFilterEngine.FilterResult result = ChatFilterEngine.filter(original);
                 if (!result.wasCensored) return true;
@@ -100,6 +95,7 @@ public class ChatEventHandler {
                         sender.sendMessage(Text.literal(
                             "§4✖ §cMuted 24h and being kicked — muted §f3 times§c."
                         ), false);
+                        // Yarn: networkHandler.disconnect(Text)
                         sender.getServer().execute(() ->
                             sender.networkHandler.disconnect(Text.literal(
                                 "§cKicked by FiestaPunish\n"
@@ -136,11 +132,12 @@ public class ChatEventHandler {
         );
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // ── Helpers (Yarn: ServerPlayerEntity, Text, getPlayerManager, sendMessage) ──
 
     private static void notifyStaff(ServerPlayerEntity sender, String msg) {
         if (sender.getServer() == null) return;
         Text t = Text.literal("§8[§6FiestaPunish§8] " + msg);
+        // Yarn: getPlayerManager().getPlayerList()
         sender.getServer().getPlayerManager().getPlayerList()
             .stream().filter(p -> p.hasPermissionLevel(2))
             .forEach(p -> p.sendMessage(t, false));

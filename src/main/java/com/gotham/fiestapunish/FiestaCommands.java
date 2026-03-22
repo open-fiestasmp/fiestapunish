@@ -21,7 +21,6 @@ public class FiestaCommands {
                 CommandManager.literal("fiestapunish")
                     .requires(src -> src.hasPermissionLevel(2))
 
-                    // /fiestapunish status
                     .then(CommandManager.literal("status")
                         .executes(ctx -> {
                             ok(ctx.getSource(),
@@ -36,7 +35,6 @@ public class FiestaCommands {
                         })
                     )
 
-                    // /fiestapunish reload
                     .then(CommandManager.literal("reload")
                         .executes(ctx -> {
                             FilterConfig.reload();
@@ -46,8 +44,6 @@ public class FiestaCommands {
                             return 1;
                         })
                     )
-
-                    // ── Word management ──────────────────────────────────────
 
                     .then(CommandManager.literal("words")
                         .then(CommandManager.literal("list")
@@ -63,8 +59,8 @@ public class FiestaCommands {
                             .then(CommandManager.argument("word", StringArgumentType.word())
                                 .executes(ctx -> {
                                     String w = StringArgumentType.getString(ctx, "word");
-                                    if (FilterConfig.addWord(w)) ok(ctx.getSource(), "Added word: §f'" + w + "'");
-                                    else err(ctx.getSource(), "§f'" + w + "' §7is already filtered.");
+                                    if (FilterConfig.addWord(w)) ok(ctx.getSource(), "Added: §f'" + w + "'");
+                                    else err(ctx.getSource(), "§f'" + w + "' §7already filtered.");
                                     return 1;
                                 })
                             )
@@ -73,15 +69,13 @@ public class FiestaCommands {
                             .then(CommandManager.argument("word", StringArgumentType.word())
                                 .executes(ctx -> {
                                     String w = StringArgumentType.getString(ctx, "word");
-                                    if (FilterConfig.removeWord(w)) ok(ctx.getSource(), "Removed word: §f'" + w + "'");
-                                    else err(ctx.getSource(), "§f'" + w + "' §7was not found.");
+                                    if (FilterConfig.removeWord(w)) ok(ctx.getSource(), "Removed: §f'" + w + "'");
+                                    else err(ctx.getSource(), "§f'" + w + "' §7not found.");
                                     return 1;
                                 })
                             )
                         )
                     )
-
-                    // ── Phrase management ────────────────────────────────────
 
                     .then(CommandManager.literal("phrases")
                         .then(CommandManager.literal("list")
@@ -116,21 +110,17 @@ public class FiestaCommands {
                         )
                     )
 
-                    // ── Test ─────────────────────────────────────────────────
-
                     .then(CommandManager.literal("test")
                         .then(CommandManager.argument("message", StringArgumentType.greedyString())
                             .executes(ctx -> {
                                 String msg = StringArgumentType.getString(ctx, "message");
                                 ChatFilterEngine.FilterResult r = ChatFilterEngine.filter(msg);
                                 if (r.wasCensored) ok(ctx.getSource(), "§cFiltered: §f" + r.filtered);
-                                else               ok(ctx.getSource(), "§aClean — no matches found.");
+                                else               ok(ctx.getSource(), "§aClean — no matches.");
                                 return 1;
                             })
                         )
                     )
-
-                    // ── Settings ──────────────────────────────────────────────
 
                     .then(CommandManager.literal("set")
                         .then(CommandManager.literal("censorchar")
@@ -165,8 +155,6 @@ public class FiestaCommands {
                         )
                     )
 
-                    // ── Player management ─────────────────────────────────────
-
                     .then(CommandManager.literal("info")
                         .then(CommandManager.argument("player", StringArgumentType.word())
                             .executes(ctx -> {
@@ -178,16 +166,16 @@ public class FiestaCommands {
                                 if (rec == null) { ok(ctx.getSource(), "§f" + name + " §7has a clean record."); return 1; }
                                 rec.resetIfNeeded();
                                 String muteStr = (rec.mutedUntil != null && System.currentTimeMillis() < rec.mutedUntil)
-                                    ? "§cYes §8(§f" + fmtMs(rec.mutedUntil) + "§8 left)"  : "§aNo";
+                                    ? "§cYes §8(§f" + fmtMs(rec.mutedUntil) + "§8 left)" : "§aNo";
                                 String banStr = (rec.bannedUntil != null && System.currentTimeMillis() < rec.bannedUntil)
-                                    ? (rec.bannedUntil == Long.MAX_VALUE ? "§cPermanent" : "§cYes §8(§f" + fmtMs(rec.bannedUntil) + "§8 left)") : "§aNo";
+                                    ? (rec.bannedUntil == Long.MAX_VALUE ? "§cPermanent" : "§cYes") : "§aNo";
                                 ok(ctx.getSource(),
                                     "§6Record for §f" + name + "\n" +
-                                    "§7Warns today:       §f" + rec.warnsToday + " §8/ " + PunishmentManager.WARNS_BEFORE_MUTE + "\n" +
-                                    "§7Mutes this month:  §f" + rec.mutesThisMonth + " §8/ " + PunishmentManager.MUTES_BEFORE_BAN + "\n" +
-                                    "§7Consec. mutes:     §f" + rec.shortMutesThisRound + " §8/ " + PunishmentManager.MUTES_BEFORE_KICK_MUTE + "\n" +
-                                    "§7Muted:             " + muteStr + "\n" +
-                                    "§7Banned:            " + banStr
+                                    "§7Warns today:      §f" + rec.warnsToday + " §8/ " + PunishmentManager.WARNS_BEFORE_MUTE + "\n" +
+                                    "§7Mutes this month: §f" + rec.mutesThisMonth + " §8/ " + PunishmentManager.MUTES_BEFORE_BAN + "\n" +
+                                    "§7Consec. mutes:    §f" + rec.shortMutesThisRound + " §8/ " + PunishmentManager.MUTES_BEFORE_KICK_MUTE + "\n" +
+                                    "§7Muted:            " + muteStr + "\n" +
+                                    "§7Banned:           " + banStr
                                 );
                                 return 1;
                             })
@@ -201,8 +189,8 @@ public class FiestaCommands {
                                 ServerPlayerEntity target = ctx.getSource().getServer().getPlayerManager().getPlayer(name);
                                 if (target == null) { err(ctx.getSource(), "Player §f'" + name + "' §7not found or offline."); return 0; }
                                 PunishmentManager.unmute(target.getUuidAsString());
-                                ok(ctx.getSource(), "§f" + name + " §7has been unmuted.");
-                                target.sendMessage(Text.literal("§a✔ §7Your mute has been lifted by a staff member."), false);
+                                ok(ctx.getSource(), "§f" + name + " §7unmuted.");
+                                target.sendMessage(Text.literal("§a✔ §7Your mute has been lifted by staff."), false);
                                 return 1;
                             })
                         )
@@ -213,9 +201,9 @@ public class FiestaCommands {
                             .executes(ctx -> {
                                 String name = StringArgumentType.getString(ctx, "player");
                                 ServerPlayerEntity target = ctx.getSource().getServer().getPlayerManager().getPlayer(name);
-                                if (target == null) { err(ctx.getSource(), "Player §f'" + name + "' §7not found or offline. Use UUID if needed."); return 0; }
+                                if (target == null) { err(ctx.getSource(), "Player §f'" + name + "' §7not found or offline."); return 0; }
                                 PunishmentManager.unban(target.getUuidAsString());
-                                ok(ctx.getSource(), "§f" + name + " §7has been unbanned from chat.");
+                                ok(ctx.getSource(), "§f" + name + " §7unbanned from chat.");
                                 return 1;
                             })
                         )
@@ -228,7 +216,7 @@ public class FiestaCommands {
                                 ServerPlayerEntity target = ctx.getSource().getServer().getPlayerManager().getPlayer(name);
                                 if (target == null) { err(ctx.getSource(), "Player §f'" + name + "' §7not found or offline."); return 0; }
                                 PunishmentManager.reset(target.getUuidAsString());
-                                ok(ctx.getSource(), "§f" + name + " §7's entire punishment record has been reset.");
+                                ok(ctx.getSource(), "§f" + name + " §7record fully reset.");
                                 return 1;
                             })
                         )
@@ -236,8 +224,6 @@ public class FiestaCommands {
             )
         );
     }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static void ok(ServerCommandSource src, String msg) {
         src.sendFeedback(() -> Text.literal("§8[§6FiestaPunish§8] §r" + msg), false);

@@ -11,12 +11,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 
-/**
- * Loads and manages:
- *  - config/fiestapunish/banned_words.json   (single words + leet variants)
- *  - config/fiestapunish/banned_phrases.json (full sentence patterns)
- *  - config/fiestapunish/settings.json       (behaviour toggles)
- */
 public class FilterConfig {
 
     static final Path CONFIG_DIR = FabricLoader.getInstance().getConfigDir().resolve("fiestapunish");
@@ -25,68 +19,27 @@ public class FilterConfig {
     private static final Path SETTINGS_FILE = CONFIG_DIR.resolve("settings.json");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
-    // ── Runtime data ─────────────────────────────────────────────────────────
     private static Set<String>  bannedWords   = new LinkedHashSet<>();
     private static List<String> bannedPhrases = new ArrayList<>();
-
-    // ── Settings ─────────────────────────────────────────────────────────────
     private static String  censorChar    = "#";
     private static boolean logToConsole  = true;
     private static boolean wholeWordOnly = false;
 
-    // ── Defaults ─────────────────────────────────────────────────────────────
     private static final List<String> DEFAULT_WORDS = Arrays.asList(
-        // Common profanity
-        "fuck", "shit", "ass", "bitch", "bastard", "cunt",
-        "dick", "cock", "pussy", "asshole", "motherfucker",
-        "fag", "faggot", "nigger", "nigga", "retard",
-        "whore", "slut", "piss", "bollocks", "wanker", "twat",
-        // Leet / substitution variants are handled by the normalizer,
-        // but keeping explicit variants here for extra coverage
-        "f4ck", "sh1t", "a55", "b1tch", "d1ck", "c0ck",
-        // Slurs and hate terms
-        "kike", "spic", "chink", "gook", "wetback", "cracker",
-        // Threats / severe
-        "kys", "kill yourself", "go die", "end yourself"
+        "fuck", "shit", "ass", "bitch", "bastard", "cunt", "dick", "cock",
+        "pussy", "asshole", "motherfucker", "fag", "faggot", "nigger", "nigga",
+        "retard", "whore", "slut", "piss", "bollocks", "wanker", "twat",
+        "kike", "spic", "chink", "gook", "cracker", "kys"
     );
 
     private static final List<String> DEFAULT_PHRASES = Arrays.asList(
-        // Death wishes / threats
-        "i hope you die",
-        "i hope u die",
-        "go kill yourself",
-        "go kys",
-        "i will kill you",
-        "i'm going to kill you",
-        "im going to kill you",
-        "i want to kill you",
-        "you should die",
-        "u should die",
-        "kill urself",
-        "end your life",
-        // Sexual harassment
-        "send nudes",
-        "send pics",
-        "show me your",
-        "i want to rape",
-        "i wanna rape",
-        // Doxxing / irl threats
-        "i know where you live",
-        "i'll find your address",
-        "i will swat you",
-        "i'm going to swat",
-        // Severe discrimination
-        "go back to your country",
-        "you don't belong here",
-        // Spam / advertising patterns
-        "free robux",
-        "free nitro",
-        "click this link",
-        "join my server",
-        "free gift card"
+        "i hope you die", "i hope u die", "go kill yourself", "go kys",
+        "i will kill you", "i'm going to kill you", "im going to kill you",
+        "you should die", "u should die", "kill urself", "end your life",
+        "send nudes", "i want to rape", "i wanna rape",
+        "i know where you live", "i will swat you", "i'm going to swat",
+        "go back to your country", "free robux", "free nitro"
     );
-
-    // ── Load / Save ──────────────────────────────────────────────────────────
 
     public static void load() {
         try {
@@ -103,7 +56,6 @@ public class FilterConfig {
         if (!Files.exists(WORDS_FILE)) {
             try (Writer w = Files.newBufferedWriter(WORDS_FILE)) { GSON.toJson(DEFAULT_WORDS, w); }
             bannedWords = new LinkedHashSet<>(DEFAULT_WORDS);
-            FiestaPunishMod.LOGGER.info("[FiestaPunish] Created default banned_words.json");
         } else {
             try (Reader r = Files.newBufferedReader(WORDS_FILE)) {
                 Type t = new TypeToken<List<String>>(){}.getType();
@@ -118,7 +70,6 @@ public class FilterConfig {
         if (!Files.exists(PHRASES_FILE)) {
             try (Writer w = Files.newBufferedWriter(PHRASES_FILE)) { GSON.toJson(DEFAULT_PHRASES, w); }
             bannedPhrases = new ArrayList<>(DEFAULT_PHRASES);
-            FiestaPunishMod.LOGGER.info("[FiestaPunish] Created default banned_phrases.json");
         } else {
             try (Reader r = Files.newBufferedReader(PHRASES_FILE)) {
                 Type t = new TypeToken<List<String>>(){}.getType();
@@ -148,8 +99,8 @@ public class FilterConfig {
     public static void saveSettings() {
         try (Writer w = Files.newBufferedWriter(SETTINGS_FILE)) {
             Map<String, Object> m = new LinkedHashMap<>();
-            m.put("censorChar",    censorChar);
-            m.put("logToConsole",  logToConsole);
+            m.put("censorChar", censorChar);
+            m.put("logToConsole", logToConsole);
             m.put("wholeWordOnly", wholeWordOnly);
             GSON.toJson(m, w);
         } catch (IOException e) {
@@ -174,8 +125,6 @@ public class FilterConfig {
             FiestaPunishMod.LOGGER.error("[FiestaPunish] Failed to save phrases: {}", e.getMessage());
         }
     }
-
-    // ── Getters / Setters ────────────────────────────────────────────────────
 
     public static Set<String>  getBannedWords()   { return bannedWords; }
     public static List<String> getBannedPhrases() { return bannedPhrases; }
